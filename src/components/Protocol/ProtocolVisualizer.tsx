@@ -78,6 +78,49 @@ const TimelineItem = styled.div`
   }
 `;
 
+// Enhanced TimelineItem with styling based on type
+const EnhancedTimelineItem = styled(TimelineItem)<{ type: string }>`
+  &:before {
+    background-color: ${props => {
+      switch (props.type) {
+        case 'request':
+          return '#4A6FFF'; // Blue
+        case 'response':
+          return '#28A745'; // Green
+        case 'websocket':
+          return '#FFC107'; // Yellow
+        case 'error':
+          return '#DC3545'; // Red
+        default:
+          return '#4A6FFF';
+      }
+    }};
+  }
+`;
+
+// Connection line between related request-response items
+const ConnectionLine = styled.div<{ duration?: number }>`
+  position: absolute;
+  left: -1.06rem;
+  top: 0.375rem;
+  width: 0.625rem;
+  height: calc(100% + 1rem);
+  border-left: 2px dashed #444;
+  border-bottom: 2px dashed #444;
+  border-bottom-left-radius: 0.5rem;
+  z-index: 0;
+  
+  &:after {
+    content: '${props => props.duration ? `${formatDuration(props.duration)}` : ''}';
+    position: absolute;
+    bottom: -0.75rem;
+    left: -2.5rem;
+    font-size: 0.7rem;
+    color: #888;
+    white-space: nowrap;
+  }
+`;
+
 const TimelineItemHeader = styled.div`
   display: flex;
   justify-content: space-between;
@@ -139,6 +182,34 @@ const DurationBadge = styled.span`
   font-size: 0.7rem;
   background-color: #333;
   color: #aaa;
+`;
+
+// New styled component for timing bar
+const TimingBar = styled.div<{ duration?: number }>`
+  height: 4px;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(to right, 
+    #4A6FFF, 
+    ${props => {
+      // Color based on response time - green for fast, yellow for medium, red for slow
+      if (!props.duration) return '#4A6FFF';
+      if (props.duration < 300) return '#28A745';
+      if (props.duration < 1000) return '#FFC107';
+      return '#DC3545';
+    }}
+  );
+  border-radius: 2px;
+  position: relative;
+  
+  &:after {
+    content: '${props => props.duration ? `${formatDuration(props.duration)}` : ''}';
+    position: absolute;
+    right: 0;
+    top: -1.25rem;
+    font-size: 0.7rem;
+    color: #888;
+  }
 `;
 
 const JsonViewer = styled.pre`
@@ -218,6 +289,43 @@ const ExpandButton = styled.button`
   }
 `;
 
+// Helper function to format duration
+const formatDuration = (duration?: number): string => {
+  if (!duration) return '';
+  
+  if (duration < 1000) {
+    return `${duration}ms`;
+  }
+  
+  return `${(duration / 1000).toFixed(2)}s`;
+};
+
+// Group related protocol steps (e.g., request and its response)
+const groupProtocolSteps = (steps: ProtocolStep[]): ProtocolStep[][] => {
+  const groups: ProtocolStep[][] = [];
+  const pendingRequests: Record<string, number> = {};
+  
+  steps.forEach(step => {
+    if (step.type === 'request') {
+      const groupIndex = groups.length;
+      groups.push([step]);
+      // Store the endpoint to match with response later
+      pendingRequests[step.endpoint] = groupIndex;
+    } else if (step.type === 'response' && pendingRequests.hasOwnProperty(step.endpoint)) {
+      // Add response to the same group as its request
+      const groupIndex = pendingRequests[step.endpoint];
+      groups[groupIndex].push(step);
+      // Remove from pending requests
+      delete pendingRequests[step.endpoint];
+    } else {
+      // Standalone step
+      groups.push([step]);
+    }
+  });
+  
+  return groups;
+};
+
 const ProtocolVisualizer: React.FC = () => {
   const { state, dispatch } = useApp();
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
@@ -244,21 +352,6 @@ const ProtocolVisualizer: React.FC = () => {
   };
 
   /**
-   * Format a duration for display
-   * @param duration - The duration in milliseconds
-   * @returns Formatted duration string
-   */
-  const formatDuration = (duration?: number): string => {
-    if (!duration) return '';
-    
-    if (duration < 1000) {
-      return `${duration}ms`;
-    }
-    
-    return `${(duration / 1000).toFixed(2)}s`;
-  };
-
-  /**
    * Format the HTTP method for display
    * @param method - The HTTP method
    * @returns Formatted method string
@@ -273,6 +366,9 @@ const ProtocolVisualizer: React.FC = () => {
   const handleClearProtocol = () => {
     dispatch({ type: 'CLEAR_PROTOCOL_STEPS' });
   };
+
+  // Group the protocol steps for better visualization
+  const groupedSteps = groupProtocolSteps(state.protocol);
 
   // If visualizer is collapsed, show a minimal version
   if (isCollapsed) {
@@ -314,34 +410,46 @@ const ProtocolVisualizer: React.FC = () => {
           </EmptyState>
         ) : (
           <Timeline>
-            {state.protocol.map(step => (
-              <TimelineItem key={step.id}>
-                <TimelineItemHeader>
-                  <div>
-                    <TypeBadge type={step.type}>{step.type}</TypeBadge>
-                    <EndpointLabel method={step.method}>
-                      {formatMethod(step.method)} {step.endpoint}
-                    </EndpointLabel>
-                  </div>
-                  <div>
-                    {step.duration && (
-                      <DurationBadge>{formatDuration(step.duration)}</DurationBadge>
+            {groupedSteps.map((group, groupIndex) => (
+              <React.Fragment key={`group-${groupIndex}`}>
+                {group.map((step, index) => (
+                  <EnhancedTimelineItem key={step.id} type={step.type}>
+                    {index === 0 && group.length > 1 && (
+                      <ConnectionLine duration={group[1]?.duration} />
                     )}
-                    <ToggleExpandButton 
-                      onClick={() => toggleItemExpanded(step.id)}
-                      title={expandedItems[step.id] ? 'Collapse' : 'Expand'}
-                    >
-                      {expandedItems[step.id] ? '▲' : '▼'}
-                    </ToggleExpandButton>
-                  </div>
-                </TimelineItemHeader>
-                <TimestampLabel>{formatTimestamp(step.timestamp)}</TimestampLabel>
-                <TimelineItemContent isExpanded={!!expandedItems[step.id]}>
-                  {step.data && (
-                    <JsonViewer>{JSON.stringify(step.data, null, 2)}</JsonViewer>
-                  )}
-                </TimelineItemContent>
-              </TimelineItem>
+                    <TimelineItemHeader>
+                      <div>
+                        <TypeBadge type={step.type}>{step.type}</TypeBadge>
+                        <EndpointLabel method={step.method}>
+                          {formatMethod(step.method)} {step.endpoint}
+                        </EndpointLabel>
+                      </div>
+                      <div>
+                        {step.duration && (
+                          <DurationBadge>{formatDuration(step.duration)}</DurationBadge>
+                        )}
+                        <ToggleExpandButton 
+                          onClick={() => toggleItemExpanded(step.id)}
+                          title={expandedItems[step.id] ? 'Collapse' : 'Expand'}
+                        >
+                          {expandedItems[step.id] ? '▲' : '▼'}
+                        </ToggleExpandButton>
+                      </div>
+                    </TimelineItemHeader>
+                    <TimestampLabel>{formatTimestamp(step.timestamp)}</TimestampLabel>
+                    
+                    {step.duration && (
+                      <TimingBar duration={step.duration} />
+                    )}
+                    
+                    <TimelineItemContent isExpanded={!!expandedItems[step.id]}>
+                      {step.data && (
+                        <JsonViewer>{JSON.stringify(step.data, null, 2)}</JsonViewer>
+                      )}
+                    </TimelineItemContent>
+                  </EnhancedTimelineItem>
+                ))}
+              </React.Fragment>
             ))}
           </Timeline>
         )}
