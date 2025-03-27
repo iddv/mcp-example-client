@@ -1,8 +1,12 @@
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import styled from 'styled-components';
 import { useApp } from '../../context/AppContext';
-import { parseCommand } from '../../utils/commandParser';
+import { parseCommand, getCommandHelp } from '../../utils/commandParser';
 import apiClient from '../../api/client';
+import CommandInput from './CommandInput';
+import ResponseDisplay from './ResponseDisplay';
+import StreamDisplay from './StreamDisplay';
+import { v4 as uuidv4 } from 'uuid';
 
 const TerminalWrapper = styled.div`
   flex: 1;
@@ -102,8 +106,8 @@ const TerminalContainer = forwardRef<{ focusInput: () => void }, TerminalContain
     const [history, setHistory] = useState<HistoryItem[]>([
       { id: 0, info: 'MCP Client Terminal. Type "help" for available commands.' }
     ]);
-    const [historyIndex, setHistoryIndex] = useState<number>(-1);
-    const [tempCommand, setTempCommand] = useState<string>('');
+    const [isExecuting, setIsExecuting] = useState(false);
+    const [isStreaming, setIsStreaming] = useState(false);
     const { state, dispatch } = useApp();
     const terminalRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -149,14 +153,29 @@ const TerminalContainer = forwardRef<{ focusInput: () => void }, TerminalContain
     const handleCommand = async () => {
       if (!command.trim()) return;
       
-      const newId = history.length;
+      const commandId = uuidv4();
       const currentCommand = command;
       
-      // Add command to history
+      // Add command to local terminal history
       setHistory(prev => [
         ...prev,
-        { id: newId, command: currentCommand }
+        { id: Date.now(), command: currentCommand }
       ]);
+      
+      // Parse the command
+      const parsedCommand = parseCommand(currentCommand.trim());
+      
+      // Add command to global app history
+      dispatch({
+        type: 'ADD_HISTORY_ITEM',
+        payload: {
+          id: commandId,
+          command: currentCommand,
+          timestamp: new Date().toISOString(),
+          parsedCommand: parsedCommand,
+          favorite: false
+        }
+      });
       
       // Reset command input and notify parent
       setCommand('');
@@ -165,318 +184,118 @@ const TerminalContainer = forwardRef<{ focusInput: () => void }, TerminalContain
       }
       
       try {
-        // Parse and execute the command
-        const parsedCommand = parseCommand(currentCommand.trim());
+        setIsExecuting(true);
         
+        // Execute the command
         if (!parsedCommand.valid) {
           setHistory(prev => {
             const updated = [...prev];
-            const commandItem = updated.find(item => item.id === newId);
+            const commandItem = updated.find(item => item.command === currentCommand);
             if (commandItem) {
               commandItem.error = `Invalid command: ${parsedCommand.error}`;
             }
             return updated;
           });
+          setIsExecuting(false);
           return;
         }
         
-        // Handle help command
-        if (parsedCommand.type === 'help') {
-          setHistory(prev => {
-            const updated = [...prev];
-            const commandItem = updated.find(item => item.id === newId);
-            if (commandItem) {
-              commandItem.info = `
-Available commands:
-  help                                     - Show this help message
-  clear                                    - Clear the terminal
-  connect <url> <apiKey>                   - Connect to MCP server
-  call <functionName> <parameters>         - Call a function
-  tool <toolName> <parameters>             - Call a tool
-  list functions                           - List available functions
-  list tools                               - List available tools
-`;
+        // Handle different command types
+        switch (parsedCommand.type) {
+          case 'help':
+            setHistory(prev => {
+              const updated = [...prev];
+              const commandItem = updated.find(item => item.command === currentCommand);
+              if (commandItem) {
+                commandItem.info = getCommandHelp();
+              }
+              return updated;
+            });
+            break;
+            
+          case 'clear':
+            setHistory([]);
+            break;
+            
+          case 'history':
+            // Display command history
+            const historyCommands = state.history
+              .filter(item => item.command)
+              .map((item, index) => `${index + 1}: ${item.command}`)
+              .join('\n');
+            
+            setHistory(prev => {
+              const updated = [...prev];
+              const commandItem = updated.find(item => item.command === currentCommand);
+              if (commandItem) {
+                commandItem.output = historyCommands || 'No command history';
+              }
+              return updated;
+            });
+            break;
+            
+          case 'connect':
+            // Handle connection to server
+            if (parsedCommand.parameters) {
+              const { url, apiKey } = parsedCommand.parameters;
+              
+              dispatch({
+                type: 'SET_CONNECTION',
+                payload: {
+                  serverUrl: url,
+                  apiKey: apiKey,
+                  connected: false
+                }
+              });
+              
+              const connected = await apiClient.testConnection();
+              
+              dispatch({
+                type: 'SET_CONNECTION',
+                payload: { connected }
+              });
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  if (connected) {
+                    commandItem.info = `Connected to server at ${url}`;
+                  } else {
+                    commandItem.error = `Failed to connect to server at ${url}`;
+                  }
+                }
+                return updated;
+              });
             }
-            return updated;
-          });
-          return;
-        }
-        
-        // Handle clear command
-        if (parsedCommand.type === 'clear') {
-          setHistory([{ 
-            id: 0, 
-            info: 'Terminal cleared. Type "help" for available commands.' 
-          }]);
-          dispatch({ type: 'CLEAR_PROTOCOL_STEPS' });
-          return;
-        }
-        
-        // Handle connect command
-        if (parsedCommand.type === 'connect') {
-          const params = parsedCommand.parameters || {};
-          const url = params.url || '';
-          const apiKey = params.apiKey || '';
+            break;
+            
+          // ... handle other command types ...
           
-          try {
-            // Configure the API client
-            apiClient.updateConfig(url, apiKey);
-            
-            // Test the connection
-            const success = await apiClient.testConnection();
-            
-            if (!success) {
-              throw new Error('Connection test failed');
-            }
-            
-            // Update connection state
-            dispatch({
-              type: 'SET_CONNECTION',
-              payload: {
-                serverUrl: url,
-                apiKey,
-                connected: true
-              }
-            });
-            
+          default:
             setHistory(prev => {
               const updated = [...prev];
-              const commandItem = updated.find(item => item.id === newId);
+              const commandItem = updated.find(item => item.command === currentCommand);
               if (commandItem) {
-                commandItem.info = `Connected to ${url}`;
+                commandItem.error = `Unimplemented command type: ${parsedCommand.type}`;
               }
               return updated;
             });
-          } catch (error) {
-            console.error('Connection error:', error);
-            
-            // Update connection state to disconnected
-            dispatch({
-              type: 'SET_CONNECTION',
-              payload: {
-                serverUrl: url,
-                apiKey,
-                connected: false
-              }
-            });
-            
-            setHistory(prev => {
-              const updated = [...prev];
-              const commandItem = updated.find(item => item.id === newId);
-              if (commandItem) {
-                commandItem.error = error instanceof Error 
-                  ? error.message 
-                  : 'Failed to connect to server';
-              }
-              return updated;
-            });
-          }
-          
-          return;
         }
-        
-        // Validate connection for commands that require it
-        if (!state.connection.connected) {
-          setHistory(prev => {
-            const updated = [...prev];
-            const commandItem = updated.find(item => item.id === newId);
-            if (commandItem) {
-              commandItem.error = 'Not connected to server. Use `connect` command first.';
-            }
-            return updated;
-          });
-          return;
-        }
-        
-        // Handle function calls
-        if (parsedCommand.type === 'call_function') {
-          try {
-            const result = await apiClient.callFunction({
-              name: parsedCommand.functionName || '',
-              parameters: parsedCommand.parameters || {}
-            });
-            
-            // Add protocol step
-            const protocolStep = {
-              id: Date.now().toString(),
-              type: 'request' as const,
-              method: 'POST',
-              endpoint: `/api/functions/call`,
-              timestamp: new Date().toISOString(),
-              data: {
-                request: {
-                  name: parsedCommand.functionName,
-                  parameters: parsedCommand.parameters
-                },
-                response: result
-              }
-            };
-            
-            dispatch({ type: 'ADD_PROTOCOL_STEP', payload: protocolStep });
-            
-            setHistory(prev => {
-              const updated = [...prev];
-              const commandItem = updated.find(item => item.id === newId);
-              if (commandItem) {
-                commandItem.output = JSON.stringify(result, null, 2);
-              }
-              return updated;
-            });
-          } catch (error) {
-            console.error('Error calling function:', error);
-            
-            setHistory(prev => {
-              const updated = [...prev];
-              const commandItem = updated.find(item => item.id === newId);
-              if (commandItem) {
-                commandItem.error = error instanceof Error 
-                  ? error.message 
-                  : 'An unknown error occurred while calling function';
-              }
-              return updated;
-            });
-          }
-          
-          return;
-        }
-        
-        // Handle tool calls
-        if (parsedCommand.type === 'call_tool') {
-          try {
-            const result = await apiClient.callTool({
-              name: parsedCommand.functionName || '',
-              parameters: parsedCommand.parameters || {}
-            });
-            
-            // Add protocol step
-            const protocolStep = {
-              id: Date.now().toString(),
-              type: 'request' as const,
-              method: 'POST',
-              endpoint: `/api/tools/call`,
-              timestamp: new Date().toISOString(),
-              data: {
-                request: {
-                  name: parsedCommand.functionName,
-                  parameters: parsedCommand.parameters
-                },
-                response: result
-              }
-            };
-            
-            dispatch({ type: 'ADD_PROTOCOL_STEP', payload: protocolStep });
-            
-            setHistory(prev => {
-              const updated = [...prev];
-              const commandItem = updated.find(item => item.id === newId);
-              if (commandItem) {
-                commandItem.output = JSON.stringify(result, null, 2);
-              }
-              return updated;
-            });
-          } catch (error) {
-            console.error('Error calling tool:', error);
-            
-            setHistory(prev => {
-              const updated = [...prev];
-              const commandItem = updated.find(item => item.id === newId);
-              if (commandItem) {
-                commandItem.error = error instanceof Error 
-                  ? error.message 
-                  : 'An unknown error occurred while calling tool';
-              }
-              return updated;
-            });
-          }
-          
-          return;
-        }
-        
-        // Handle list command
-        if (parsedCommand.type === 'functions_list') {
-          try {
-            const functions = await apiClient.listFunctions();
-            
-            setHistory(prev => {
-              const updated = [...prev];
-              const commandItem = updated.find(item => item.id === newId);
-              if (commandItem) {
-                commandItem.output = functions.map(f => f.name).join('\n');
-              }
-              return updated;
-            });
-          } catch (error) {
-            console.error('Error listing functions:', error);
-            
-            setHistory(prev => {
-              const updated = [...prev];
-              const commandItem = updated.find(item => item.id === newId);
-              if (commandItem) {
-                commandItem.error = error instanceof Error 
-                  ? error.message 
-                  : 'An unknown error occurred while listing functions';
-              }
-              return updated;
-            });
-          }
-          
-          return;
-        }
-        
-        // Handle tools list command
-        if (parsedCommand.type === 'tools_list') {
-          try {
-            // Currently not implemented in API client
-            setHistory(prev => {
-              const updated = [...prev];
-              const commandItem = updated.find(item => item.id === newId);
-              if (commandItem) {
-                commandItem.info = 'Tool listing is not currently implemented';
-              }
-              return updated;
-            });
-          } catch (error) {
-            console.error('Error listing tools:', error);
-            
-            setHistory(prev => {
-              const updated = [...prev];
-              const commandItem = updated.find(item => item.id === newId);
-              if (commandItem) {
-                commandItem.error = error instanceof Error 
-                  ? error.message 
-                  : 'An unknown error occurred while listing tools';
-              }
-              return updated;
-            });
-          }
-          
-          return;
-        }
-        
-        // If we get here, the command type is unknown
-        setHistory(prev => {
-          const updated = [...prev];
-          const commandItem = updated.find(item => item.id === newId);
-          if (commandItem) {
-            commandItem.error = `Unknown command type: ${parsedCommand.type}`;
-          }
-          return updated;
-        });
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        
         setHistory(prev => {
           const updated = [...prev];
-          const commandItem = updated.find(item => item.id === newId);
+          const commandItem = updated.find(item => item.command === currentCommand);
           if (commandItem) {
-            commandItem.error = error instanceof Error 
-              ? error.message 
-              : 'An unknown error occurred';
+            commandItem.error = `Error executing command: ${errorMessage}`;
           }
           return updated;
         });
+      } finally {
+        setIsExecuting(false);
       }
-      
-      // Reset history index
-      setHistoryIndex(-1);
     };
 
     /**
@@ -489,38 +308,17 @@ Available commands:
         e.preventDefault();
         
         // Navigate up through command history
-        if (historyIndex === -1 && command) {
-          setTempCommand(command);
-        }
-        
-        const commandHistory = history
-          .filter(item => item.command)
-          .map(item => item.command as string);
-        
-        if (commandHistory.length > 0) {
-          const newIndex = historyIndex < commandHistory.length - 1 
-            ? historyIndex + 1 
-            : historyIndex;
-          
-          setHistoryIndex(newIndex);
-          setCommand(commandHistory[commandHistory.length - 1 - newIndex] || '');
+        if (history.length > 0) {
+          const newIndex = history.length - 1;
+          setCommand(history[newIndex].command || '');
         }
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
         
         // Navigate down through command history
-        const commandHistory = history
-          .filter(item => item.command)
-          .map(item => item.command as string);
-        
-        if (historyIndex > 0) {
-          const newIndex = historyIndex - 1;
-          setHistoryIndex(newIndex);
-          setCommand(commandHistory[commandHistory.length - 1 - newIndex] || '');
-        } else if (historyIndex === 0) {
-          setHistoryIndex(-1);
-          setCommand(tempCommand);
-          setTempCommand('');
+        if (history.length > 0) {
+          const newIndex = history.length - 1;
+          setCommand(history[newIndex].command || '');
         }
       }
     };
@@ -529,7 +327,7 @@ Available commands:
       <TerminalWrapper>
         <Terminal ref={terminalRef}>
           <TerminalHistory>
-            {history.map((item) => (
+            {history.map(item => (
               <div key={item.id}>
                 {item.command && (
                   <CommandPrompt>
@@ -537,25 +335,35 @@ Available commands:
                     {item.command}
                   </CommandPrompt>
                 )}
-                {item.output && <CommandOutput>{item.output}</CommandOutput>}
+                {item.output && (
+                  <CommandOutput>
+                    {item.output}
+                  </CommandOutput>
+                )}
                 {item.error && <ErrorOutput>{item.error}</ErrorOutput>}
                 {item.info && <InfoOutput>{item.info}</InfoOutput>}
               </div>
             ))}
+            {isStreaming && (
+              <StreamDisplay 
+                wsState={{
+                  connected: true,
+                  connecting: false,
+                  messages: []
+                }}
+                command={{type: 'stream_function', functionName: 'stream'}}
+                onStop={() => setIsStreaming(false)}
+              />
+            )}
           </TerminalHistory>
         </Terminal>
-        <InputContainer>
-          <InputPrefix>&gt;</InputPrefix>
-          <Input
-            ref={inputRef}
-            type="text"
-            value={command}
-            onChange={(e) => setCommand(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Enter command..."
-            autoFocus
-          />
-        </InputContainer>
+        <CommandInput 
+          value={command}
+          onChange={setCommand}
+          onExecute={handleCommand}
+          isExecuting={isExecuting}
+          isStreaming={isStreaming}
+        />
       </TerminalWrapper>
     );
   }

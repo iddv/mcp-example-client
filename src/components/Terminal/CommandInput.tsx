@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import styled from 'styled-components';
 import { getRandomPlaceholder } from '../../utils/commandParser';
+import { useApp } from '../../context/AppContext';
+import { v4 as uuidv4 } from 'uuid';
 
 const InputContainer = styled.div`
   display: flex;
@@ -72,10 +74,16 @@ const CommandInput: React.FC<CommandInputProps> = ({
   isExecuting,
   isStreaming,
 }) => {
-  const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [tempCommand, setTempCommand] = useState('');
   const [placeholder, setPlaceholder] = useState(getRandomPlaceholder());
+  const { state } = useApp();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Get command history from app context
+  const commandHistory = state.history
+    .filter(item => item.command) // Only include items with a command
+    .map(item => item.command as string); // Extract command string
 
   // Focus the input when the component mounts
   useEffect(() => {
@@ -99,11 +107,10 @@ const CommandInput: React.FC<CommandInputProps> = ({
   const handleExecute = () => {
     if (!value.trim() || isExecuting || isStreaming) return;
     
-    // Execute the command
+    // Execute the command - parent component will add to history
     onExecute(value);
     
-    // Add to history
-    setHistory((prev) => [value, ...prev]);
+    // Reset history navigation
     setHistoryIndex(-1);
   };
 
@@ -123,11 +130,16 @@ const CommandInput: React.FC<CommandInputProps> = ({
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       
-      if (history.length === 0) return;
+      if (commandHistory.length === 0) return;
       
-      const newIndex = historyIndex < history.length - 1 ? historyIndex + 1 : historyIndex;
+      // If this is the first press, store the current command
+      if (historyIndex === -1) {
+        setTempCommand(value);
+      }
+      
+      const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
       setHistoryIndex(newIndex);
-      onChange(history[newIndex]);
+      onChange(commandHistory[newIndex]);
       
       // Move cursor to end of input
       setTimeout(() => {
@@ -146,13 +158,13 @@ const CommandInput: React.FC<CommandInputProps> = ({
       
       if (historyIndex <= 0) {
         setHistoryIndex(-1);
-        onChange('');
+        onChange(tempCommand); // Restore the command that was being typed
         return;
       }
       
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
-      onChange(history[newIndex]);
+      onChange(commandHistory[newIndex]);
       
       // Move cursor to end of input
       setTimeout(() => {
@@ -170,6 +182,7 @@ const CommandInput: React.FC<CommandInputProps> = ({
       e.preventDefault();
       onChange('');
       setHistoryIndex(-1);
+      setTempCommand('');
       return;
     }
     

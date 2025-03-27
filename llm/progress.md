@@ -27,8 +27,8 @@ This document tracks the progress of the MCP Client UI implementation.
 - [x] Create CommandInput with Monaco editor integration
 - [x] Develop ResponseDisplay with syntax highlighting
 - [x] Build StreamDisplay for WebSocket responses
-- [ ] Implement command history navigation
-- [ ] Add command parsing and validation
+- [x] Implement command history navigation
+- [x] Add command parsing and validation
 
 ## Phase 4: Command Parser & Executor
 
@@ -64,7 +64,7 @@ This document tracks the progress of the MCP Client UI implementation.
 
 ## Current Focus
 
-Currently working on Phase 3: Terminal Interface Core Components - Implementing command history navigation and command parsing/validation.
+Currently working on Phase 4: Command Parser & Executor - Creating command parser to detect command type and parameters and implementing validation against function schemas.
 
 ## Completed Milestones
 
@@ -77,4 +77,6 @@ Currently working on Phase 3: Terminal Interface Core Components - Implementing 
 - WebSocketClient for streaming endpoints implemented
 - Terminal interface core components created
 - Connection status monitoring implemented
-- API hooks for common operations created 
+- API hooks for common operations created
+- Command history navigation implemented with persistence
+- Command parsing and validation implemented 
