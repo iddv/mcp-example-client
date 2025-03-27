@@ -52,7 +52,7 @@ This document tracks the progress of the MCP Client UI implementation.
 - [x] Add favorites system for common commands
 - [x] Create export/import functionality
 - [x] Implement keyboard shortcuts
-- [ ] Add command builder UI for complex parameters
+- [x] Add command builder UI for complex parameters
 
 ## Phase 7: Testing, Documentation & Refinement
 
@@ -64,7 +64,7 @@ This document tracks the progress of the MCP Client UI implementation.
 
 ## Current Focus
 
-Currently working on Phase 6: Enhanced Features - Adding command builder UI for complex parameters.
+Currently working on Phase 7: Testing, Documentation & Refinement - Setting up testing framework.
 
 ## Completed Milestones
 
@@ -93,3 +93,4 @@ Currently working on Phase 6: Enhanced Features - Adding command builder UI for 
 - UI components for managing favorites created
 - Export/import functionality implemented for saving and sharing command history and favorites
 - Keyboard shortcuts implemented for common operations with help dialog 
+- Command builder UI implemented for complex parameters with visual form generation from JSON schema 

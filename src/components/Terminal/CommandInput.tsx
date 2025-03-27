@@ -7,6 +7,7 @@ import {
   terminalShortcuts, 
   KeyboardShortcut 
 } from '../../utils/keyboardShortcuts';
+import { CommandBuilderButton } from '../CommandBuilder';
 
 const InputContainer = styled.div`
   display: flex;
@@ -81,6 +82,7 @@ const CommandInput: React.FC<CommandInputProps> = ({
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [tempCommand, setTempCommand] = useState('');
   const [placeholder, setPlaceholder] = useState(getRandomPlaceholder());
+  const [functionName, setFunctionName] = useState<string | null>(null);
   const { state } = useApp();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -104,6 +106,24 @@ const CommandInput: React.FC<CommandInputProps> = ({
     
     return () => clearInterval(interval);
   }, []);
+
+  // Parse the command to detect if it's a function call
+  useEffect(() => {
+    const trimmedValue = value.trim();
+    
+    // Check if command starts with 'call '
+    if (trimmedValue.startsWith('call ')) {
+      // Extract function name - looking for pattern: call functionName {params}
+      const match = trimmedValue.match(/^call\s+([a-zA-Z0-9._]+)(\s+.*)?$/);
+      if (match) {
+        setFunctionName(match[1]);
+        return;
+      }
+    }
+    
+    // Not a valid function call command
+    setFunctionName(null);
+  }, [value]);
 
   /**
    * Handle command execution
@@ -255,6 +275,18 @@ const CommandInput: React.FC<CommandInputProps> = ({
     }
   };
 
+  /**
+   * Handle command from builder
+   */
+  const handleCommandFromBuilder = (command: string) => {
+    onChange(command);
+    
+    // Focus back on the input
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
   return (
     <InputContainer>
       <Prompt>&gt;</Prompt>
@@ -269,6 +301,15 @@ const CommandInput: React.FC<CommandInputProps> = ({
         spellCheck={false}
         autoComplete="off"
       />
+      
+      {/* Show the command builder button when a function name is detected */}
+      {functionName && !isExecuting && !isStreaming && (
+        <CommandBuilderButton 
+          functionName={functionName}
+          onCommandGenerated={handleCommandFromBuilder}
+        />
+      )}
+      
       <ExecuteButton
         onClick={handleExecute}
         disabled={!value.trim() || isExecuting || isStreaming}
