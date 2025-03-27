@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { ProtocolStep } from '../../types/mcp';
 import { useApp } from '../../context/AppContext';
+import ProtocolStepDetails from './ProtocolStepDetails';
 
 const VisualizerContainer = styled.div`
   display: flex;
@@ -444,7 +445,10 @@ const ProtocolVisualizer: React.FC = () => {
                     
                     <TimelineItemContent isExpanded={!!expandedItems[step.id]}>
                       {step.data && (
-                        <JsonViewer>{JSON.stringify(step.data, null, 2)}</JsonViewer>
+                        <>
+                          <ProtocolStepDetails step={step} />
+                          <JsonViewer>{JSON.stringify(step.data, null, 2)}</JsonViewer>
+                        </>
                       )}
                     </TimelineItemContent>
                   </EnhancedTimelineItem>
