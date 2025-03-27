@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import ConnectionSettings from './ConnectionSettings';
 import FunctionBrowser from './FunctionBrowser';
 import FavoritesList from './FavoritesList';
+import ExportImport from './ExportImport';
 
 const SidebarContainer = styled.div`
   display: flex;
@@ -103,6 +104,8 @@ const Sidebar: React.FC<SidebarProps> = ({ onTryFunction }) => {
         <ConnectionSettings />
         <Divider />
         <FavoritesList onTryCommand={onTryFunction} />
+        <Divider />
+        <ExportImport />
         <Divider />
         <FunctionBrowser onTryFunction={onTryFunction} />
       </SidebarContent>

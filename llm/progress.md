@@ -50,8 +50,8 @@ This document tracks the progress of the MCP Client UI implementation.
 
 - [x] Implement multi-tab interface for parallel testing
 - [x] Add favorites system for common commands
-- [ ] Create export/import functionality
-- [ ] Implement keyboard shortcuts
+- [x] Create export/import functionality
+- [x] Implement keyboard shortcuts
 - [ ] Add command builder UI for complex parameters
 
 ## Phase 7: Testing, Documentation & Refinement
@@ -64,7 +64,7 @@ This document tracks the progress of the MCP Client UI implementation.
 
 ## Current Focus
 
-Currently working on Phase 6: Enhanced Features - Implementing keyboard shortcuts and adding export/import functionality.
+Currently working on Phase 6: Enhanced Features - Adding command builder UI for complex parameters.
 
 ## Completed Milestones
 
@@ -90,4 +90,6 @@ Currently working on Phase 6: Enhanced Features - Implementing keyboard shortcut
 - Schema visualization for function parameters implemented
 - Multi-tab interface for parallel testing implemented with TabManager, TabBar, and TabContent components
 - Favorites system implemented for saving and reusing common commands
-- UI components for managing favorites created 
+- UI components for managing favorites created
+- Export/import functionality implemented for saving and sharing command history and favorites
+- Keyboard shortcuts implemented for common operations with help dialog 

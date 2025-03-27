@@ -1,10 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import Sidebar from '../Sidebar/Sidebar';
 import TerminalContainer from '../Terminal/TerminalContainer';
 import ProtocolVisualizer from '../Protocol/ProtocolVisualizer';
 import ConnectionStatus from './ConnectionStatus';
 import TabManager from '../Tabs/TabManager';
+import ShortcutsHelp from './ShortcutsHelp';
+import { useKeyboardShortcuts, KeyboardShortcut } from '../../utils/keyboardShortcuts';
 
 const LayoutContainer = styled.div`
   display: grid;
@@ -47,7 +49,23 @@ interface TerminalRefs {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [terminalCommands, setTerminalCommands] = useState<{ [key: string]: string }>({});
+  const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
   const terminalRefs = useRef<TerminalRefs>({});
+
+  // Define global keyboard shortcuts
+  const globalShortcuts: KeyboardShortcut[] = [
+    {
+      keys: ['F1'],
+      description: 'Show keyboard shortcuts help',
+      action: () => {
+        setIsShortcutsHelpOpen(true);
+      },
+      scope: 'global',
+    },
+  ];
+
+  // Register global keyboard shortcuts
+  useKeyboardShortcuts(globalShortcuts, 'global');
 
   /**
    * Get or create a terminal ref for a tab
@@ -121,6 +139,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <ProtocolVisualizer />
       </MainContent>
       <ConnectionStatus />
+      <ShortcutsHelp
+        isOpen={isShortcutsHelpOpen}
+        onClose={() => setIsShortcutsHelpOpen(false)}
+      />
     </LayoutContainer>
   );
 };

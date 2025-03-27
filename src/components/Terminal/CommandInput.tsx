@@ -2,7 +2,11 @@ import React, { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import styled from 'styled-components';
 import { getRandomPlaceholder } from '../../utils/commandParser';
 import { useApp } from '../../context/AppContext';
-import { v4 as uuidv4 } from 'uuid';
+import { 
+  useKeyboardShortcuts, 
+  terminalShortcuts, 
+  KeyboardShortcut 
+} from '../../utils/keyboardShortcuts';
 
 const InputContainer = styled.div`
   display: flex;
@@ -115,6 +119,102 @@ const CommandInput: React.FC<CommandInputProps> = ({
   };
 
   /**
+   * Navigate to previous command in history
+   */
+  const handlePreviousCommand = () => {
+    if (commandHistory.length === 0) return;
+    
+    // If this is the first press, store the current command
+    if (historyIndex === -1) {
+      setTempCommand(value);
+    }
+    
+    const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
+    setHistoryIndex(newIndex);
+    onChange(commandHistory[newIndex]);
+    
+    // Move cursor to end of input
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.selectionStart = inputRef.current.value.length;
+        inputRef.current.selectionEnd = inputRef.current.value.length;
+      }
+    }, 0);
+  };
+
+  /**
+   * Navigate to next command in history
+   */
+  const handleNextCommand = () => {
+    if (historyIndex <= 0) {
+      setHistoryIndex(-1);
+      onChange(tempCommand); // Restore the command that was being typed
+      return;
+    }
+    
+    const newIndex = historyIndex - 1;
+    setHistoryIndex(newIndex);
+    onChange(commandHistory[newIndex]);
+    
+    // Move cursor to end of input
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.selectionStart = inputRef.current.value.length;
+        inputRef.current.selectionEnd = inputRef.current.value.length;
+      }
+    }, 0);
+  };
+
+  /**
+   * Clear the input
+   */
+  const handleClearInput = () => {
+    onChange('');
+    setHistoryIndex(-1);
+    setTempCommand('');
+  };
+
+  // Create custom keyboard shortcuts specific to this component
+  const customShortcuts: KeyboardShortcut[] = [
+    {
+      keys: ['Ctrl', 'Enter'],
+      description: 'Execute command',
+      action: () => handleExecute(),
+      scope: 'terminal',
+    },
+    {
+      keys: ['ArrowUp'],
+      description: 'Previous command',
+      action: () => handlePreviousCommand(),
+      scope: 'terminal',
+    },
+    {
+      keys: ['ArrowDown'],
+      description: 'Next command',
+      action: () => handleNextCommand(),
+      scope: 'terminal',
+    },
+    {
+      keys: ['Escape'],
+      description: 'Clear input',
+      action: () => handleClearInput(),
+      scope: 'terminal',
+    },
+    {
+      keys: ['Ctrl', 'l'],
+      description: 'Clear terminal',
+      action: () => {
+        // Will be implemented in TerminalContainer
+        console.log('Clear terminal shortcut');
+      },
+      scope: 'terminal',
+    },
+  ];
+
+  // Register keyboard shortcuts
+  useKeyboardShortcuts(customShortcuts, 'terminal');
+
+  /**
    * Handle key presses
    * @param e - Keyboard event
    */
@@ -129,60 +229,21 @@ const CommandInput: React.FC<CommandInputProps> = ({
     // Up arrow navigates history backwards
     if (e.key === 'ArrowUp') {
       e.preventDefault();
-      
-      if (commandHistory.length === 0) return;
-      
-      // If this is the first press, store the current command
-      if (historyIndex === -1) {
-        setTempCommand(value);
-      }
-      
-      const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
-      setHistoryIndex(newIndex);
-      onChange(commandHistory[newIndex]);
-      
-      // Move cursor to end of input
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.selectionStart = inputRef.current.value.length;
-          inputRef.current.selectionEnd = inputRef.current.value.length;
-        }
-      }, 0);
-      
+      handlePreviousCommand();
       return;
     }
     
     // Down arrow navigates history forwards
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      
-      if (historyIndex <= 0) {
-        setHistoryIndex(-1);
-        onChange(tempCommand); // Restore the command that was being typed
-        return;
-      }
-      
-      const newIndex = historyIndex - 1;
-      setHistoryIndex(newIndex);
-      onChange(commandHistory[newIndex]);
-      
-      // Move cursor to end of input
-      setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.selectionStart = inputRef.current.value.length;
-          inputRef.current.selectionEnd = inputRef.current.value.length;
-        }
-      }, 0);
-      
+      handleNextCommand();
       return;
     }
     
     // Escape key clears the input
     if (e.key === 'Escape') {
       e.preventDefault();
-      onChange('');
-      setHistoryIndex(-1);
-      setTempCommand('');
+      handleClearInput();
       return;
     }
     
