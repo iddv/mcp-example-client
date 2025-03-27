@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { ProtocolStep } from '../../types/mcp';
 import { useApp } from '../../context/AppContext';
 import ProtocolStepDetails from './ProtocolStepDetails';
+import JsonInspector from './JsonInspector';
 
 const VisualizerContainer = styled.div`
   display: flex;
@@ -213,13 +214,10 @@ const TimingBar = styled.div<{ duration?: number }>`
   }
 `;
 
-const JsonViewer = styled.pre`
-  margin: 0;
-  font-family: 'Roboto Mono', monospace;
-  font-size: 0.8rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: #e9e9e9;
+const JsonContainer = styled.div`
+  margin-top: 1rem;
+  border-top: 1px solid #444;
+  padding-top: 1rem;
 `;
 
 const EmptyState = styled.div`
@@ -447,7 +445,9 @@ const ProtocolVisualizer: React.FC = () => {
                       {step.data && (
                         <>
                           <ProtocolStepDetails step={step} />
-                          <JsonViewer>{JSON.stringify(step.data, null, 2)}</JsonViewer>
+                          <JsonContainer>
+                            <JsonInspector data={step.data} expandLevel={1} />
+                          </JsonContainer>
                         </>
                       )}
                     </TimelineItemContent>
