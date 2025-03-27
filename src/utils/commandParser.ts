@@ -1,4 +1,4 @@
-import { ParsedCommand, CommandType } from '../types/mcp';
+import { ParsedCommand, CommandType, JSONSchemaProperty, MCPFunctionDefinition } from '../types/mcp';
 
 /**
  * Parse a command string into a structured command object
@@ -146,6 +146,146 @@ export const parseCommand = (commandString: string): ParsedCommand => {
 };
 
 /**
+ * Validate parameters against a function schema
+ * @param parameters - The parameters to validate
+ * @param schema - The JSON schema to validate against
+ * @returns Validation result with errors if any
+ */
+export const validateParameters = (
+  parameters: Record<string, any>, 
+  schema: JSONSchemaProperty
+): { valid: boolean; errors?: string[] } => {
+  const errors: string[] = [];
+  
+  // Check required properties
+  if (schema.required) {
+    for (const requiredProp of schema.required) {
+      if (!(requiredProp in parameters)) {
+        errors.push(`Missing required parameter: ${requiredProp}`);
+      }
+    }
+  }
+  
+  // Check property types and constraints
+  if (schema.properties) {
+    for (const [propName, propSchema] of Object.entries(schema.properties)) {
+      if (propName in parameters) {
+        const value = parameters[propName];
+        
+        // Type validation
+        if (propSchema.type) {
+          const types = Array.isArray(propSchema.type) ? propSchema.type : [propSchema.type];
+          let typeValid = false;
+          
+          for (const type of types) {
+            switch (type) {
+              case 'string':
+                typeValid = typeof value === 'string';
+                break;
+              case 'number':
+              case 'integer':
+                typeValid = typeof value === 'number';
+                if (type === 'integer' && typeValid) {
+                  typeValid = Number.isInteger(value);
+                }
+                break;
+              case 'boolean':
+                typeValid = typeof value === 'boolean';
+                break;
+              case 'object':
+                typeValid = typeof value === 'object' && value !== null && !Array.isArray(value);
+                break;
+              case 'array':
+                typeValid = Array.isArray(value);
+                break;
+              case 'null':
+                typeValid = value === null;
+                break;
+            }
+            
+            if (typeValid) break;
+          }
+          
+          if (!typeValid) {
+            errors.push(`Invalid type for parameter ${propName}. Expected ${types.join(' or ')}.`);
+          }
+        }
+        
+        // String constraints
+        if (propSchema.type === 'string' && typeof value === 'string') {
+          if (propSchema.minLength !== undefined && value.length < propSchema.minLength) {
+            errors.push(`Parameter ${propName} is too short. Minimum length: ${propSchema.minLength}.`);
+          }
+          
+          if (propSchema.maxLength !== undefined && value.length > propSchema.maxLength) {
+            errors.push(`Parameter ${propName} is too long. Maximum length: ${propSchema.maxLength}.`);
+          }
+          
+          if (propSchema.pattern && !new RegExp(propSchema.pattern).test(value)) {
+            errors.push(`Parameter ${propName} does not match required pattern.`);
+          }
+        }
+        
+        // Number constraints
+        if ((propSchema.type === 'number' || propSchema.type === 'integer') && typeof value === 'number') {
+          if (propSchema.minimum !== undefined && value < propSchema.minimum) {
+            errors.push(`Parameter ${propName} is too small. Minimum value: ${propSchema.minimum}.`);
+          }
+          
+          if (propSchema.maximum !== undefined && value > propSchema.maximum) {
+            errors.push(`Parameter ${propName} is too large. Maximum value: ${propSchema.maximum}.`);
+          }
+        }
+        
+        // Array constraints
+        if (propSchema.type === 'array' && Array.isArray(value)) {
+          if (propSchema.minItems !== undefined && value.length < propSchema.minItems) {
+            errors.push(`Array ${propName} has too few items. Minimum: ${propSchema.minItems}.`);
+          }
+          
+          if (propSchema.maxItems !== undefined && value.length > propSchema.maxItems) {
+            errors.push(`Array ${propName} has too many items. Maximum: ${propSchema.maxItems}.`);
+          }
+        }
+      }
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors: errors.length > 0 ? errors : undefined
+  };
+};
+
+/**
+ * Validate a command against a function definition
+ * @param command - The parsed command
+ * @param functionDef - The function definition to validate against
+ * @returns Updated command with validation results
+ */
+export const validateCommand = (
+  command: ParsedCommand,
+  functionDef: MCPFunctionDefinition
+): ParsedCommand => {
+  // Only validate commands with parameters
+  if (!command.parameters) {
+    return command;
+  }
+  
+  const validation = validateParameters(command.parameters, functionDef.parameters);
+  
+  if (!validation.valid) {
+    return {
+      ...command,
+      valid: false,
+      error: `Parameter validation failed: ${validation.errors?.join('; ')}`
+    };
+  }
+  
+  return command;
+};
+
+/**
  * Generate command help text
  * @returns Help text for available commands
  */
@@ -159,6 +299,8 @@ list tools                         - List all available tools
 call <n> <params>                  - Call a function with parameters
 tool <n> <params>                  - Call a tool with parameters
 stream <n> <params>                - Stream results from a function
+function get <n>                   - Get detailed information about a function
+execute "<text>"                   - Execute direct text processing
 
 Special commands:
 help                               - Show this help message
@@ -184,6 +326,8 @@ export const getExampleCommands = (): string[] => [
   'call calculator.add {"a": 5, "b": 3}',
   'tool text.uppercase {"text": "hello world"}',
   'stream long_running {"duration": 5}',
+  'function get calculator.add',
+  'execute "Calculate 5 + 3"',
 ];
 
 /**
