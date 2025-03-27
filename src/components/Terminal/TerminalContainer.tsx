@@ -7,6 +7,7 @@ import CommandInput from './CommandInput';
 import ResponseDisplay from './ResponseDisplay';
 import StreamDisplay from './StreamDisplay';
 import { v4 as uuidv4 } from 'uuid';
+import { FiStar } from 'react-icons/fi';
 
 const TerminalWrapper = styled.div`
   flex: 1;
@@ -87,6 +88,37 @@ const Input = styled.input`
   }
 `;
 
+const CommandWithActions = styled.div`
+  display: flex;
+  align-items: center;
+`;
+
+const CommandText = styled.span`
+  flex: 1;
+`;
+
+const CommandActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-left: 0.5rem;
+`;
+
+const ActionIcon = styled.button`
+  background: transparent;
+  border: none;
+  color: #a0a0a0;
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    color: #4A6FFF;
+  }
+`;
+
 interface HistoryItem {
   id: number;
   command?: string;
@@ -100,6 +132,134 @@ interface TerminalContainerProps {
   onCommandExecuted?: () => void;
 }
 
+interface AddFavoriteDialogProps {
+  command: string;
+  onSave: (name: string, description?: string | undefined) => void;
+  onCancel: () => void;
+}
+
+const AddFavoriteDialog: React.FC<AddFavoriteDialogProps> = ({ command, onSave, onCancel }) => {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (name.trim()) {
+      // Only pass description if it's non-empty
+      const trimmedDescription = description.trim();
+      onSave(name.trim(), trimmedDescription.length > 0 ? trimmedDescription : undefined);
+    }
+  };
+  
+  return (
+    <div style={{
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: '#252526',
+      padding: '1rem',
+      borderRadius: '4px',
+      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
+      width: '400px',
+      zIndex: 1000
+    }}>
+      <h3 style={{ marginBottom: '1rem' }}>Save Command as Favorite</h3>
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+            Command:
+          </label>
+          <div style={{ 
+            padding: '0.5rem', 
+            background: '#1e1e1e', 
+            borderRadius: '4px',
+            color: '#4A6FFF',
+            fontFamily: 'monospace',
+            overflow: 'auto'
+          }}>
+            {command}
+          </div>
+        </div>
+        
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+            Name:
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={{ 
+                width: '100%', 
+                padding: '0.5rem',
+                background: '#1e1e1e',
+                border: '1px solid #3a3a3a',
+                borderRadius: '4px',
+                color: '#e9e9e9',
+                marginTop: '0.25rem'
+              }}
+              placeholder="Enter a name for this command"
+              required
+            />
+          </label>
+        </div>
+        
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+            Description (optional):
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              style={{ 
+                width: '100%', 
+                padding: '0.5rem',
+                background: '#1e1e1e',
+                border: '1px solid #3a3a3a',
+                borderRadius: '4px',
+                color: '#e9e9e9',
+                height: '80px',
+                resize: 'vertical',
+                marginTop: '0.25rem'
+              }}
+              placeholder="Describe what this command does"
+            />
+          </label>
+        </div>
+        
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              padding: '0.5rem 1rem',
+              background: 'transparent',
+              border: '1px solid #3a3a3a',
+              borderRadius: '4px',
+              color: '#e9e9e9',
+              cursor: 'pointer'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            style={{
+              padding: '0.5rem 1rem',
+              background: '#4A6FFF',
+              border: 'none',
+              borderRadius: '4px',
+              color: '#ffffff',
+              cursor: 'pointer'
+            }}
+          >
+            Save
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
 const TerminalContainer = forwardRef<{ focusInput: () => void }, TerminalContainerProps>(
   ({ initialCommand = '', onCommandExecuted }, ref) => {
     const [command, setCommand] = useState('');
@@ -108,7 +268,11 @@ const TerminalContainer = forwardRef<{ focusInput: () => void }, TerminalContain
     ]);
     const [isExecuting, setIsExecuting] = useState(false);
     const [isStreaming, setIsStreaming] = useState(false);
-    const { state, dispatch } = useApp();
+    const [favoriteDialog, setFavoriteDialog] = useState<{ visible: boolean, command: string }>({
+      visible: false,
+      command: ''
+    });
+    const { state, dispatch, addFavorite } = useApp();
     const terminalRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -323,23 +487,59 @@ const TerminalContainer = forwardRef<{ focusInput: () => void }, TerminalContain
       }
     };
 
+    // Add this new method to handle adding to favorites
+    const handleAddToFavorites = (command: string) => {
+      setFavoriteDialog({
+        visible: true,
+        command
+      });
+    };
+    
+    // Add this method for saving a favorite
+    const handleSaveFavorite = (name: string, description?: string) => {
+      addFavorite(
+        favoriteDialog.command, 
+        name,
+        description !== undefined && description !== '' ? description : undefined
+      );
+
+      setFavoriteDialog({
+        visible: false,
+        command: ''
+      });
+    };
+    
+    // Add this method for canceling the add favorite dialog
+    const handleCancelFavorite = () => {
+      setFavoriteDialog({
+        visible: false,
+        command: ''
+      });
+    };
+
     return (
       <TerminalWrapper>
         <Terminal ref={terminalRef}>
           <TerminalHistory>
-            {history.map(item => (
+            {history.map((item, index) => (
               <div key={item.id}>
                 {item.command && (
                   <CommandPrompt>
-                    <Prompt>&gt;</Prompt>
-                    {item.command}
+                    <Prompt>{'>'}</Prompt>
+                    <CommandWithActions>
+                      <CommandText>{item.command}</CommandText>
+                      <CommandActions>
+                        <ActionIcon 
+                          onClick={() => handleAddToFavorites(item.command)}
+                          title="Add to favorites"
+                        >
+                          <FiStar />
+                        </ActionIcon>
+                      </CommandActions>
+                    </CommandWithActions>
                   </CommandPrompt>
                 )}
-                {item.output && (
-                  <CommandOutput>
-                    {item.output}
-                  </CommandOutput>
-                )}
+                {item.output && <CommandOutput>{item.output}</CommandOutput>}
                 {item.error && <ErrorOutput>{item.error}</ErrorOutput>}
                 {item.info && <InfoOutput>{item.info}</InfoOutput>}
               </div>
@@ -357,6 +557,7 @@ const TerminalContainer = forwardRef<{ focusInput: () => void }, TerminalContain
             )}
           </TerminalHistory>
         </Terminal>
+        
         <CommandInput 
           value={command}
           onChange={setCommand}
@@ -364,6 +565,14 @@ const TerminalContainer = forwardRef<{ focusInput: () => void }, TerminalContain
           isExecuting={isExecuting}
           isStreaming={isStreaming}
         />
+        
+        {favoriteDialog.visible && (
+          <AddFavoriteDialog
+            command={favoriteDialog.command}
+            onSave={handleSaveFavorite}
+            onCancel={handleCancelFavorite}
+          />
+        )}
       </TerminalWrapper>
     );
   }

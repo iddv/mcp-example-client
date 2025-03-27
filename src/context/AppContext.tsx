@@ -3,7 +3,8 @@ import {
   ConnectionSettings, 
   CommandHistoryItem, 
   AppSettings,
-  ProtocolStep 
+  ProtocolStep,
+  FavoriteCommand
 } from '../types/mcp';
 import apiClient from '../api/client';
 
@@ -11,6 +12,7 @@ import apiClient from '../api/client';
 interface AppState {
   connection: ConnectionSettings;
   history: CommandHistoryItem[];
+  favorites: FavoriteCommand[];
   settings: AppSettings;
   protocol: ProtocolStep[];
   isLoading: boolean;
@@ -26,6 +28,9 @@ type AppAction =
   | { type: 'CLEAR_HISTORY' }
   | { type: 'TOGGLE_FAVORITE'; payload: string }
   | { type: 'REMOVE_HISTORY_ITEM'; payload: string }
+  | { type: 'ADD_FAVORITE'; payload: FavoriteCommand }
+  | { type: 'REMOVE_FAVORITE'; payload: string }
+  | { type: 'UPDATE_FAVORITE'; payload: FavoriteCommand }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'ADD_PROTOCOL_STEP'; payload: ProtocolStep }
   | { type: 'CLEAR_PROTOCOL_STEPS' }
@@ -38,6 +43,9 @@ interface AppContextType {
   dispatch: React.Dispatch<AppAction>;
   testConnection: () => Promise<boolean>;
   updateConnection: (serverUrl?: string, apiKey?: string) => void;
+  addFavorite: (command: string, name: string, description?: string) => void;
+  removeFavorite: (id: string) => void;
+  updateFavorite: (favorite: FavoriteCommand) => void;
 }
 
 // Create the context
@@ -51,6 +59,7 @@ const initialState: AppState = {
     connected: false,
   },
   history: [],
+  favorites: [],
   settings: {
     theme: 'dark',
     fontSize: 14,
@@ -89,6 +98,7 @@ const saveState = (state: AppState) => {
       },
       settings: state.settings,
       history: state.history.slice(-state.settings.maxHistoryItems),
+      favorites: state.favorites,
     };
     localStorage.setItem('mcp-client-state', JSON.stringify(stateToPersist));
   } catch (error) {
@@ -151,6 +161,23 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
       return {
         ...state,
         history: state.history.filter((item) => item.id !== action.payload),
+      };
+    case 'ADD_FAVORITE':
+      return {
+        ...state,
+        favorites: [...state.favorites, action.payload],
+      };
+    case 'REMOVE_FAVORITE':
+      return {
+        ...state,
+        favorites: state.favorites.filter((item) => item.id !== action.payload),
+      };
+    case 'UPDATE_FAVORITE':
+      return {
+        ...state,
+        favorites: state.favorites.map((item) =>
+          item.id === action.payload.id ? action.payload : item
+        ),
       };
     case 'UPDATE_SETTINGS':
       return {
@@ -252,6 +279,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  /**
+   * Add a command to favorites
+   */
+  const addFavorite = (command: string, name: string, description?: string) => {
+    const favorite: FavoriteCommand = {
+      id: Date.now().toString(),
+      name,
+      command,
+      description,
+      createdAt: new Date().toISOString(),
+    };
+
+    dispatch({ type: 'ADD_FAVORITE', payload: favorite });
+  };
+
+  /**
+   * Remove a favorite command
+   */
+  const removeFavorite = (id: string) => {
+    dispatch({ type: 'REMOVE_FAVORITE', payload: id });
+  };
+
+  /**
+   * Update a favorite command
+   */
+  const updateFavorite = (favorite: FavoriteCommand) => {
+    dispatch({ type: 'UPDATE_FAVORITE', payload: favorite });
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -259,6 +315,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         dispatch,
         testConnection,
         updateConnection,
+        addFavorite,
+        removeFavorite,
+        updateFavorite,
       }}
     >
       {children}
@@ -266,12 +325,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 };
 
-// Custom hook for using the context
+// Custom hook to use the app context
 export const useApp = (): AppContextType => {
   const context = useContext(AppContext);
+
   if (context === undefined) {
     throw new Error('useApp must be used within an AppProvider');
   }
+
   return context;
 };
 

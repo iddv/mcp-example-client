@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import ConnectionSettings from './ConnectionSettings';
 import FunctionBrowser from './FunctionBrowser';
+import FavoritesList from './FavoritesList';
 
 const SidebarContainer = styled.div`
   display: flex;
@@ -11,6 +12,13 @@ const SidebarContainer = styled.div`
   border-right: 1px solid #333;
   height: 100%;
   overflow: hidden;
+`;
+
+const SidebarContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
 `;
 
 const CollapseButton = styled.button<{ isCollapsed: boolean }>`
@@ -55,6 +63,12 @@ const ExpandButton = styled.button`
   }
 `;
 
+const Divider = styled.div`
+  height: 1px;
+  background-color: #3a3a3a;
+  margin: 0.5rem 0;
+`;
+
 interface SidebarProps {
   onTryFunction: (command: string) => void;
 }
@@ -85,8 +99,13 @@ const Sidebar: React.FC<SidebarProps> = ({ onTryFunction }) => {
       >
         &#8249;
       </CollapseButton>
-      <ConnectionSettings />
-      <FunctionBrowser onTryFunction={onTryFunction} />
+      <SidebarContent>
+        <ConnectionSettings />
+        <Divider />
+        <FavoritesList onTryCommand={onTryFunction} />
+        <Divider />
+        <FunctionBrowser onTryFunction={onTryFunction} />
+      </SidebarContent>
     </SidebarContainer>
   );
 };

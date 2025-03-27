@@ -4,6 +4,7 @@ import Sidebar from '../Sidebar/Sidebar';
 import TerminalContainer from '../Terminal/TerminalContainer';
 import ProtocolVisualizer from '../Protocol/ProtocolVisualizer';
 import ConnectionStatus from './ConnectionStatus';
+import TabManager from '../Tabs/TabManager';
 
 const LayoutContainer = styled.div`
   display: grid;
@@ -36,20 +37,76 @@ interface LayoutProps {
   children?: React.ReactNode;
 }
 
+interface TerminalInstanceRef {
+  focusInput: () => void;
+}
+
+interface TerminalRefs {
+  [key: string]: React.RefObject<TerminalInstanceRef | null>;
+}
+
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const [terminalCommand, setTerminalCommand] = useState('');
-  const terminalRef = useRef<any>(null);
+  const [terminalCommands, setTerminalCommands] = useState<{ [key: string]: string }>({});
+  const terminalRefs = useRef<TerminalRefs>({});
+
+  /**
+   * Get or create a terminal ref for a tab
+   */
+  const getTerminalRef = (tabId: string) => {
+    if (!terminalRefs.current[tabId]) {
+      terminalRefs.current[tabId] = React.createRef<TerminalInstanceRef | null>();
+    }
+    return terminalRefs.current[tabId];
+  };
 
   /**
    * Handle executing a command from the function browser
    * @param command - The command to execute
    */
   const handleTryFunction = (command: string) => {
-    setTerminalCommand(command);
-    // Focus the terminal input after setting the command
-    if (terminalRef.current) {
-      terminalRef.current.focusInput();
+    // Find the active tab (if any) 
+    const activeTabId = Object.keys(terminalRefs.current)[0];
+    
+    if (activeTabId) {
+      // Set the command for the active tab
+      setTerminalCommands(prev => ({
+        ...prev,
+        [activeTabId]: command
+      }));
+      
+      // Focus the terminal input after setting the command
+      const terminalRef = terminalRefs.current[activeTabId];
+      if (terminalRef.current) {
+        terminalRef.current.focusInput();
+      }
     }
+  };
+
+  /**
+   * Handle command execution completion
+   */
+  const handleCommandExecuted = (tabId: string) => {
+    setTerminalCommands(prev => {
+      const newCommands = { ...prev };
+      delete newCommands[tabId];
+      return newCommands;
+    });
+  };
+
+  /**
+   * Render a terminal for a specific tab
+   */
+  const renderTerminal = (tabId: string) => {
+    const terminalRef = getTerminalRef(tabId);
+    
+    return (
+      <TerminalContainer
+        key={tabId}
+        ref={terminalRef}
+        initialCommand={terminalCommands[tabId] || ''}
+        onCommandExecuted={() => handleCommandExecuted(tabId)}
+      />
+    );
   };
 
   return (
@@ -58,11 +115,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <Sidebar onTryFunction={handleTryFunction} />
       </SidebarArea>
       <MainContent>
-        <TerminalContainer 
-          ref={terminalRef}
-          initialCommand={terminalCommand}
-          onCommandExecuted={() => setTerminalCommand('')}
-        />
+        <TabManager>
+          {(tabId) => renderTerminal(tabId)}
+        </TabManager>
         <ProtocolVisualizer />
       </MainContent>
       <ConnectionStatus />

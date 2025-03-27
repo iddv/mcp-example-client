@@ -189,4 +189,13 @@ export interface WebSocketConnectionState {
   error?: string;
   lastMessage?: MCPStreamChunk;
   messages: MCPStreamChunk[];
+}
+
+// Favorite Command
+export interface FavoriteCommand {
+  id: string;
+  name: string;
+  command: string;
+  description?: string;
+  createdAt: string;
 } 
