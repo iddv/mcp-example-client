@@ -92,6 +92,7 @@ const TabBar: React.FC<TabBarProps> = ({
           key={tab.id}
           active={tab.active}
           onClick={() => onActivateTab(tab.id)}
+          data-active={tab.active.toString()}
         >
           <TabTitle>{tab.title}</TabTitle>
           <CloseButton 

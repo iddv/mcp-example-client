@@ -403,6 +403,10 @@ const TerminalContainer = forwardRef<{ focusInput: () => void }, TerminalContain
             if (parsedCommand.parameters) {
               const { url, apiKey } = parsedCommand.parameters;
               
+              // Update the API client first
+              apiClient.updateConfig(url, apiKey);
+              
+              // Then update the app state
               dispatch({
                 type: 'SET_CONNECTION',
                 payload: {
@@ -434,8 +438,252 @@ const TerminalContainer = forwardRef<{ focusInput: () => void }, TerminalContain
             }
             break;
             
-          // ... handle other command types ...
-          
+          case 'functions_list':
+            try {
+              // Get the list of available functions
+              const functions = await apiClient.listFunctions();
+              
+              // Format the functions into a displayable string
+              const formattedFunctions = functions
+                .map(fn => `${fn.name}: ${fn.description || 'No description available'}`)
+                .join('\n');
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  commandItem.output = formattedFunctions || 'No functions available';
+                }
+                return updated;
+              });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to list functions';
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  commandItem.error = errorMessage;
+                }
+                return updated;
+              });
+            }
+            break;
+            
+          case 'call_function':
+            try {
+              if (!parsedCommand.functionName) {
+                throw new Error('Missing function name');
+              }
+              
+              const callRequest = {
+                name: parsedCommand.functionName,
+                parameters: parsedCommand.parameters || {}
+              };
+              
+              // Call the function using the API client
+              const result = await apiClient.callFunction(callRequest);
+              
+              // Format the result for display
+              const formattedResult = JSON.stringify(result, null, 2);
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  commandItem.output = formattedResult || 'No result returned';
+                }
+                return updated;
+              });
+              
+              // Add to protocol visualization
+              dispatch({
+                type: 'ADD_PROTOCOL_STEP',
+                payload: {
+                  id: uuidv4(),
+                  type: 'request',
+                  method: 'POST',
+                  endpoint: '/api/functions/call',
+                  data: {
+                    request: callRequest,
+                    response: result
+                  },
+                  timestamp: new Date().toISOString(),
+                  duration: 0 // TODO: Track actual duration
+                }
+              });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to call function';
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  commandItem.error = errorMessage;
+                }
+                return updated;
+              });
+            }
+            break;
+            
+          case 'call_tool':
+            try {
+              if (!parsedCommand.functionName) {
+                throw new Error('Missing tool name');
+              }
+              
+              const toolRequest = {
+                name: parsedCommand.functionName,
+                parameters: parsedCommand.parameters || {}
+              };
+              
+              // Call the tool using the API client
+              const toolResult = await apiClient.callTool(toolRequest);
+              
+              // Format the result for display
+              const formattedToolResult = JSON.stringify(toolResult, null, 2);
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  commandItem.output = formattedToolResult || 'No result returned';
+                }
+                return updated;
+              });
+              
+              // Add to protocol visualization
+              dispatch({
+                type: 'ADD_PROTOCOL_STEP',
+                payload: {
+                  id: uuidv4(),
+                  type: 'request',
+                  method: 'POST',
+                  endpoint: '/api/tools/call',
+                  data: {
+                    request: toolRequest,
+                    response: toolResult
+                  },
+                  timestamp: new Date().toISOString(),
+                  duration: 0 // TODO: Track actual duration
+                }
+              });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to call tool';
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  commandItem.error = errorMessage;
+                }
+                return updated;
+              });
+            }
+            break;
+            
+          case 'function_get':
+            try {
+              if (!parsedCommand.functionName) {
+                throw new Error('Missing function name');
+              }
+              
+              // Using type assertion to tell TypeScript that functionName is definitely a string
+              const functionName = parsedCommand.functionName as string;
+              
+              // Get the function definition
+              const functionDef = await apiClient.getFunction(functionName);
+              
+              // Format the definition for display
+              const formattedDef = JSON.stringify(functionDef, null, 2);
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  commandItem.output = formattedDef || 'Function definition not available';
+                }
+                return updated;
+              });
+              
+              // Add to protocol visualization
+              dispatch({
+                type: 'ADD_PROTOCOL_STEP',
+                payload: {
+                  id: uuidv4(),
+                  type: 'request',
+                  method: 'GET',
+                  endpoint: `/api/functions/${functionName}`,
+                  data: { response: functionDef },
+                  timestamp: new Date().toISOString(),
+                  duration: 0 // TODO: Track actual duration
+                }
+              });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to get function definition';
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  commandItem.error = errorMessage;
+                }
+                return updated;
+              });
+            }
+            break;
+            
+          case 'execute':
+            try {
+              if (!parsedCommand.text) {
+                throw new Error('Missing text to execute');
+              }
+              
+              // Execute the text
+              const executeResult = await apiClient.execute({ text: parsedCommand.text });
+              
+              // Format the result for display
+              const formattedExecuteResult = JSON.stringify(executeResult, null, 2);
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  commandItem.output = formattedExecuteResult || 'No result returned';
+                }
+                return updated;
+              });
+              
+              // Add to protocol visualization
+              dispatch({
+                type: 'ADD_PROTOCOL_STEP',
+                payload: {
+                  id: uuidv4(),
+                  type: 'request',
+                  method: 'POST',
+                  endpoint: '/api/execute',
+                  data: {
+                    request: { text: parsedCommand.text },
+                    response: executeResult
+                  },
+                  timestamp: new Date().toISOString(),
+                  duration: 0 // TODO: Track actual duration
+                }
+              });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to execute text';
+              
+              setHistory(prev => {
+                const updated = [...prev];
+                const commandItem = updated.find(item => item.command === currentCommand);
+                if (commandItem) {
+                  commandItem.error = errorMessage;
+                }
+                return updated;
+              });
+            }
+            break;
+            
           default:
             setHistory(prev => {
               const updated = [...prev];

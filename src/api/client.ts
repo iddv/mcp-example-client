@@ -39,7 +39,9 @@ export class MCPApiClient {
     // Add request interceptor for API key
     this.client.interceptors.request.use(
       (config) => {
-        config.headers['Authorization'] = `Bearer ${this.apiKey}`;
+        config.headers['X-API-Key'] = this.apiKey;
+        console.log('Sending request with API key:', this.apiKey);
+        console.log('Request headers:', config.headers);
         return config;
       },
       (error) => {
@@ -62,6 +64,11 @@ export class MCPApiClient {
     if (apiKey) {
       this.apiKey = apiKey;
     }
+    
+    console.log('API client configuration updated:', {
+      baseUrl: this.baseUrl,
+      apiKey: this.apiKey
+    });
   }
 
   /**

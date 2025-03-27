@@ -97,6 +97,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onTryFunction }) => {
         isCollapsed={isCollapsed}
         onClick={() => setIsCollapsed(true)}
         title="Collapse sidebar"
+        data-iscollapsed={isCollapsed.toString()}
       >
         &#8249;
       </CollapseButton>

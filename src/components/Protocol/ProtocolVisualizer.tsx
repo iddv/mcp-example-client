@@ -396,6 +396,7 @@ const ProtocolVisualizer: React.FC = () => {
             isCollapsed={isCollapsed}
             onClick={() => setIsCollapsed(true)}
             title="Collapse visualizer"
+            data-iscollapsed={isCollapsed.toString()}
           >
             &#8250;
           </CollapseButton>

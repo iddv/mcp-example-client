@@ -268,6 +268,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
    */
   const updateConnection = (serverUrl?: string, apiKey?: string) => {
     if (serverUrl || apiKey) {
+      // Update API client configuration
+      apiClient.updateConfig(
+        serverUrl || state.connection.serverUrl,
+        apiKey || state.connection.apiKey
+      );
+      
       dispatch({
         type: 'SET_CONNECTION',
         payload: {
