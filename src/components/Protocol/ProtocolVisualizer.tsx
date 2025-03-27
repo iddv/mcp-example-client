@@ -4,6 +4,7 @@ import { ProtocolStep } from '../../types/mcp';
 import { useApp } from '../../context/AppContext';
 import ProtocolStepDetails from './ProtocolStepDetails';
 import JsonInspector from './JsonInspector';
+import SchemaVisualizer from './SchemaVisualizer';
 
 const VisualizerContainer = styled.div`
   display: flex;
@@ -445,6 +446,15 @@ const ProtocolVisualizer: React.FC = () => {
                       {step.data && (
                         <>
                           <ProtocolStepDetails step={step} />
+                          
+                          {/* Show schema visualizer for function parameters if available */}
+                          {step.data?.function?.parameters && (
+                            <SchemaVisualizer 
+                              schema={step.data.function.parameters} 
+                              title={`Parameters Schema for ${step.data.function.name}`}
+                            />
+                          )}
+                          
                           <JsonContainer>
                             <JsonInspector data={step.data} expandLevel={1} />
                           </JsonContainer>

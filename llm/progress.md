@@ -44,7 +44,7 @@ This document tracks the progress of the MCP Client UI implementation.
 - [x] Implement timing indicators for requests
 - [x] Add visual representation of protocol steps
 - [x] Build expandable JSON inspector for requests/responses
-- [ ] Create schema visualization for function parameters
+- [x] Create schema visualization for function parameters
 
 ## Phase 6: Enhanced Features
 
@@ -64,7 +64,7 @@ This document tracks the progress of the MCP Client UI implementation.
 
 ## Current Focus
 
-Currently working on Phase 5: Protocol Visualization - Creating schema visualization for function parameters.
+Currently working on Phase 6: Enhanced Features - Implementing multi-tab interface for parallel testing and adding favorites system for common commands.
 
 ## Completed Milestones
 
@@ -86,4 +86,5 @@ Currently working on Phase 5: Protocol Visualization - Creating schema visualiza
 - Request/response flow visualization implemented
 - Timing indicators for requests implemented
 - Visual representation of protocol steps implemented
-- Expandable JSON inspector for requests/responses implemented 
+- Expandable JSON inspector for requests/responses implemented
+- Schema visualization for function parameters implemented 
