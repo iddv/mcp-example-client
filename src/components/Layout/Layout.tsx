@@ -3,9 +3,15 @@ import styled from 'styled-components';
 import Sidebar from '../Sidebar/Sidebar';
 import TerminalContainer from '../Terminal/TerminalContainer';
 import ProtocolVisualizer from '../Protocol/ProtocolVisualizer';
+import ConnectionStatus from './ConnectionStatus';
 
 const LayoutContainer = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  grid-template-columns: 300px 1fr;
+  grid-template-areas:
+    "sidebar main"
+    "sidebar status";
   height: 100vh;
   width: 100%;
   overflow: hidden;
@@ -14,10 +20,15 @@ const LayoutContainer = styled.div`
   font-family: 'Inter', sans-serif;
 `;
 
+const SidebarArea = styled.div`
+  grid-area: sidebar;
+  border-right: 1px solid #3a3a3a;
+  overflow: hidden;
+`;
+
 const MainContent = styled.div`
   display: flex;
-  flex: 1;
-  height: 100%;
+  grid-area: main;
   overflow: hidden;
 `;
 
@@ -43,7 +54,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <LayoutContainer>
-      <Sidebar onTryFunction={handleTryFunction} />
+      <SidebarArea>
+        <Sidebar onTryFunction={handleTryFunction} />
+      </SidebarArea>
       <MainContent>
         <TerminalContainer 
           ref={terminalRef}
@@ -52,6 +65,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         />
         <ProtocolVisualizer />
       </MainContent>
+      <ConnectionStatus />
     </LayoutContainer>
   );
 };
